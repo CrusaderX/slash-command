@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-scaler
+  labels:
+    app: app-scaler
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: app-scaler
+  template:
+    metadata:
+      labels:
+        app: app-scaler
+    spec:
+      serviceAccount: app-scaler
+      containers:
+      - name: proxy
+        imagePullPolicy: Always
+        image: app-scaler-proxy:v1
+        volumeMounts:
+          - name: webhook-certs
+            mountPath: /etc/certs
+        ports:
+        - containerPort: 443
+      - name: app-scaler
+        imagePullPolicy: Always
+        image: app-scaler:v1
+        ports:
+        - containerPort: 3086
+      volumes:
+        - name: webhook-certs
+          secret:
+            secretName: scaler

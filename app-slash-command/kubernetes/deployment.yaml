@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-slash-command
+  labels:
+    app: app-slash-command
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: app-slash-command
+  template:
+    metadata:
+      labels:
+        app: app-slash-command
+    spec:
+      containers:
+      - name: app-slash-command
+        imagePullPolicy: Always
+        image: app-slash-command:v1
+        ports:
+        - containerPort: 3086
+        env:
+          - name: SECRET
+            valueFrom:
+              secretKeyRef:
+                name: app-slash-command
+                key: secret
+          - name: SECURITY_HEADER
+            valueFrom:
+              secretKeyRef:
+                name: app-slash-command
+                key: security_header
+          - name: SLACK_BOT_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: app-slash-command
+                key: slack_bot_token
+          - name: SLACK_BOT_CHANNEL_ID
+            valueFrom:
+              secretKeyRef:
+                name: app-slash-command
+                key: slack_bot_channel_id
+          - name: AWS_SECRET_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: app-slash-command
+                key: aws_secret_access_key
+          - name: AWS_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef:
+                name: app-slash-command
+                key: aws_access_key_id

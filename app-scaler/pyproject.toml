@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "app-scaler"
+version = "0.1.0"
+description = ""
+authors = ["CrusaderX <thepliable2@gmail.com>"]
+readme = "README.md"
+packages = [{include = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+kubernetes = "^24.2.0"
+fastapi = "^0.85.0"
+uvicorn = "^0.18.3"
+Jinja2 = "^3.1.2"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+start = "src.app:start"

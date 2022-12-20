@@ -1,0 +1,51 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: app-scaler
+subjects:
+- kind: ServiceAccount
+  name: app-scaler
+  namespace: default
+roleRef:
+  kind: ClusterRole
+  name: app-scaler
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: app-scaler
+  labels:
+    k8s-app: app-scaler
+rules:
+- apiGroups: 
+  - "apps"
+  - "batch"
+  resources:
+  - cronjobs
+  - deployments
+  - deployments/scale
+  - statefulsets
+  - statefulsets/scale
+  - namespaces
+  verbs:
+  - get
+  - list
+  - watch
+  - patch
+  - update
+- apiGroups: 
+  - "batch"
+  resources:
+  - cronjobs
+  verbs:
+  - create
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: app-scaler
+  namespace: default
+  labels:
+    app: app-scaler
+---
