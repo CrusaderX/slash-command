@@ -1,4 +1,4 @@
-from typing import Dict, Tuple, NoReturn
+from typing import Tuple
 from jinja2 import Template
 from yaml import load, SafeLoader
 
@@ -15,7 +15,7 @@ from ..common.utils import logger
 
 class CronjobService(BaseComponents):
     @staticmethod
-    def required_fields(payload: Dict) -> Tuple[str]:
+    def required_fields(payload: dict) -> Tuple[str, str, str, str]:
         """
         these objects are always present, we shouldn't care about
         them absent
@@ -34,7 +34,7 @@ class CronjobService(BaseComponents):
         except:
             raise ScalerOperationNotSupportedError(uid=uid)
 
-    def create_or_update(self, uid: str, labels: Dict, namespace: str) -> None:
+    def create_or_update(self, uid: str, labels: dict, namespace: str) -> None:
         if settings.namespace_label in labels:
             label = labels[settings.namespace_label]
 
@@ -60,7 +60,7 @@ class CronjobService(BaseComponents):
                 namespace=namespace,
             )
 
-    def disable_scheduler(self, name: str, namespace: str) -> NoReturn:
+    def disable_scheduler(self, name: str, namespace: str) -> None:
         """
         if scheduler label is missing, has been deleted or namespace
         has been created without label -> suspend cronjob even if it
@@ -76,7 +76,7 @@ class CronjobService(BaseComponents):
             f"Cronjob {name} has been successfully suspended in {namespace} namespace"
         )
 
-    def enable_scheduler(self, name: str, namespace: str, **kwargs) -> NoReturn:
+    def enable_scheduler(self, name: str, namespace: str, **kwargs) -> None:
         """
         if scheduler label has been enabled -> find cronjob if exists ->
         if it doesn't -> create cronjob

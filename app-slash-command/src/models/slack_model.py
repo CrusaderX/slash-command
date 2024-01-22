@@ -9,6 +9,7 @@ class ActionEnums(str, Enum):
     PROLONGATE = "prolongate"
     HELP = "help"
     STATUS = "status"
+    SUPPORT = "support"
 
 
 class StatusEnums(str, Enum):

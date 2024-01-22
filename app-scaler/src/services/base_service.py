@@ -1,9 +1,10 @@
 from http import HTTPStatus
 from kubernetes import client, config
+from kubernetes.client.rest import ApiException
 from collections import ChainMap
-from typing import Dict, List, Optional, Generator, Union
+from typing import Dict, List, Optional, Generator, Union, Any
 
-from ..models.scaler_model import PayloadFiledsEnums, KindsEnums
+from ..models.scaler_model import KindsEnums, PayloadFieldsEnums
 from ..handlers.error_handler import ScalerInternalError
 from ..common.utils import logger
 
@@ -23,11 +24,11 @@ batch_v1 = client.BatchV1Api()
 class BaseComponents:
     @staticmethod
     def _grabber(
-        kind: str,
+        kind: KindsEnums,
         namespaces: List[str],
         label_selector: Optional[str],
         obj: Optional[object] = apps_v1,
-        payload_key: Optional[PayloadFiledsEnums] = PayloadFiledsEnums.DEPLOYMENT,
+        payload_key: Optional[PayloadFieldsEnums] = PayloadFieldsEnums.DEPLOYMENT,
     ) -> Generator[Dict, None, None]:
         """
         Result will always has 'items' and we should iterate over it
@@ -41,11 +42,11 @@ class BaseComponents:
         """
         for namespace in namespaces:
             try:
-                result = getattr(obj, f"list_namespaced_{kind}")(
+                result = getattr(obj, f"list_namespaced_{kind.value}")(
                     namespace=namespace, label_selector=label_selector
                 ).to_dict()
-            except Exception as error:
-                raise ScalerInternalError(error=error, status_code=error.status)
+            except ApiException as error:
+                raise ScalerInternalError(error=error.reason, status_code=error.status)
 
             kinds = {}
             kinds[namespace] = {}
@@ -72,7 +73,7 @@ class BaseComponents:
             "deployments": dict(
                 ChainMap(
                     *self._grabber(
-                        kind="deployment",
+                        kind=KindsEnums.DEPLOYMENT,
                         namespaces=namespaces,
                         label_selector=label_selector,
                     )
@@ -95,7 +96,7 @@ class BaseComponents:
             "statefulsets": dict(
                 ChainMap(
                     *self._grabber(
-                        kind="stateful_set",
+                        kind=KindsEnums.STATEFUL_SET,
                         namespaces=namespaces,
                         label_selector=label_selector,
                     )
@@ -120,10 +121,37 @@ class BaseComponents:
             "cronjobs": dict(
                 ChainMap(
                     *self._grabber(
-                        kind="cron_job",
+                        kind=KindsEnums.CRON_JOB,
                         namespaces=namespaces,
                         label_selector=label_selector,
-                        payload_key=PayloadFiledsEnums.CRON_JOB,
+                        payload_key=PayloadFieldsEnums.CRON_JOB,
+                        obj=batch_v1,
+                    )
+                )
+            )
+        }
+
+    def job(
+        self,
+        namespaces: List[str],
+        label_selector: str | None = None,
+    ) -> Dict:
+        """
+        Get existing job in provided namespace
+
+        :param namespaces: List[str]
+        :param label_selector: Optional[str]
+
+        :return Dict
+        """
+        return {
+            "jobs": dict(
+                ChainMap(
+                    *self._grabber(
+                        kind=KindsEnums.JOB,
+                        namespaces=namespaces,
+                        label_selector=label_selector,
+                        payload_key=PayloadFieldsEnums.JOB,
                         obj=batch_v1,
                     )
                 )
@@ -131,19 +159,60 @@ class BaseComponents:
         }
 
     @staticmethod
+    def _delete(
+        kind: KindsEnums,
+        name: str,
+        namespace: str,
+        obj: Optional[object] = apps_v1,
+    ) -> None:
+        """
+        Delete kind
+
+        :param kind: str
+        :param name: str
+        :param namespace: str
+        :param obj: Optional[object]
+
+        :return Any
+        """
+        try:
+            getattr(obj, f"delete_namespaced_{kind.value}")(
+                name=name,
+                namespace=namespace,
+                propagation_policy="Background",
+            )
+        except ApiException as error:
+            raise ScalerInternalError(error=error.reason, status_code=error.status)
+
+    def delete_job(
+        self,
+        name: str,
+        namespace: str,
+    ) -> None:
+        """
+        Delete job
+
+        :param name: str
+        :param namespace: str
+
+        :return None
+        """
+        self._delete(kind=KindsEnums.JOB, name=name, namespace=namespace, obj=batch_v1)
+
+    @staticmethod
     def kind_status(
-        kind: str,
+        kind: KindsEnums,
         namespace: str,
         name: str,
-    ) -> dict:
+    ) -> Any:
         try:
-            return getattr(apps_v1, f"read_namespaced_{kind}")(
+            return getattr(apps_v1, f"read_namespaced_{kind.value}")(
                 name=name,
                 namespace=namespace,
             )
-        except Exception as error:
+        except ApiException as error:
             if error.status != 404:
-                raise ScalerInternalError(error=error, status_code=error.status)
+                raise ScalerInternalError(error=error.reason, status_code=error.status)
 
     @staticmethod
     def _patch(
@@ -170,9 +239,9 @@ class BaseComponents:
                 namespace=namespace,
                 body=body,
             )
-        except Exception as error:
+        except ApiException as error:
             if error.status != HTTPStatus.NOT_FOUND:
-                raise ScalerInternalError(error=error, status_code=error.status)
+                raise ScalerInternalError(error=error.reason, status_code=error.status)
 
     def patch_deployments(
         self,
@@ -219,16 +288,25 @@ class BaseComponents:
             kind="cron_job", name=name, namespace=namespace, body=body, obj=batch_v1
         )
 
+    def create_job(self, namespace: str, body: Dict) -> None:
+        try:
+            batch_v1.create_namespaced_job(
+                namespace=namespace,
+                body=body,
+            )
+        except ApiException as error:
+            raise ScalerInternalError(error=error.reason, status_code=error.status)
+
     def create_cronjob(self, namespace: str, body: Dict) -> None:
         try:
             batch_v1.create_namespaced_cron_job(
                 namespace=namespace,
                 body=body,
             )
-        except Exception as error:
+        except ApiException as error:
             if error.status != HTTPStatus.CONFLICT:
                 logger.error(f"An kubernetes error occured: {error.body}")
-                raise ScalerInternalError(error=error, status_code=error.status)
+                raise ScalerInternalError(error=error.reason, status_code=error.status)
 
     def suspend_cronjob(self, name: str, namespace: str) -> None:
         return self.patch_cronjobs(

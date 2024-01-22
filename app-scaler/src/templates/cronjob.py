@@ -11,6 +11,7 @@ spec:
   concurrencyPolicy: Forbid
   failedJobsHistoryLimit: 1
   successfulJobsHistoryLimit: 0
+  startingDeadlineSeconds: 200
   jobTemplate:
     spec:
       template:
@@ -20,7 +21,7 @@ spec:
             args: 
             - /bin/sh
             - -c
-            - "curl -XPOST http://app-scaler.default.svc.cluster.local/api/v1/stop -H 'Content-Type: application/json' -d '{\\\"namespaces\\\": [\\\"{{ namespace }}\\\"], \\\"replicas\\\": \\\"0\\\"}'"
+            - "curl -XPOST http://app-scaler.slack-bot.svc/api/v1/stop -H 'Content-Type: application/json' -d '{\\\"namespaces\\\": [\\\"{{ namespace }}\\\"], \\\"replicas\\\": \\\"0\\\"}'"
             name: curl
           restartPolicy: OnFailure
 """

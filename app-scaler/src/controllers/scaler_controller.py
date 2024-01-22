@@ -1,33 +1,39 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Header, BackgroundTasks
 from http import HTTPStatus
+from typing import cast
 
 from ..models.scaler_model import (
-    PayloadFiledsEnums,
+    PayloadFieldsEnums,
     ScalerModel,
-    ScalerResponseModel,
     ScalerProlongateModel,
     ScalerProlongateResponseModel,
     ScalerScheduleResetModel,
     ScalerScheduleResetResponseModel,
     ScalerStatusModel,
+    ScalerSupportModel,
 )
 from ..services.scaler_service import ScalerService
+from ..services.support_service import SupportService
+from ..services.aws_service import AwsService
 from ..common.utils import logger
 
 scaler = ScalerService()
+aws = AwsService()
+support_service = SupportService()
+
 router = APIRouter(
     prefix="/api/v1",
     responses={HTTPStatus.NOT_FOUND: {"message": "not found"}},
 )
 
 
-@router.post(
-    "/start", response_model=ScalerResponseModel, status_code=HTTPStatus.CREATED
-)
-@router.post(
-    "/stop", response_model=ScalerResponseModel, status_code=HTTPStatus.CREATED
-)
-async def scale(model: ScalerModel):
+@router.post("/start", status_code=HTTPStatus.CREATED)
+@router.post("/stop", status_code=HTTPStatus.CREATED)
+async def scale(
+    model: ScalerModel,
+    background_tasks: BackgroundTasks,
+    x_slack_bot_request: str = Header(None),
+):
     """
     Scale deployment or statefulset based on provided replica count
     """
@@ -37,12 +43,19 @@ async def scale(model: ScalerModel):
         f"Got request with kinds: {model.kinds} in {model.namespaces} namespaces, should scale to {model.replicas} replicas"
     )
 
+    background_tasks.add_task(
+        aws.start_stop_instances,
+        replicas=model.replicas,
+        namespaces=model.namespaces,
+        header=x_slack_bot_request,
+    )
+
     kinds = list(scaler.describe(kinds=model.kinds, namespaces=model.namespaces))
 
     for kind in kinds:
-        scaler.filter(kind=kind, exclude=model.exclude)
         scaler.patch(
-            kind=kind, body={"spec": {PayloadFiledsEnums.DEPLOYMENT: model.replicas}}
+            kind=scaler.filter(kind=kind, exclude=model.exclude).pop(),
+            body={"spec": {PayloadFieldsEnums.DEPLOYMENT: model.replicas}},
         )
 
     return model
@@ -70,10 +83,14 @@ async def prolongate(model: ScalerProlongateModel):
         )
     )
     schedule = scaler.modify_schedule(
-        cronjob=cronjob, namespace=model.namespace, hours=model.hours
+        cronjob=cast(dict, cronjob),
+        namespace=model.namespace,
+        hours=model.hours,
     )
 
-    scaler.patch(kind=cronjob, body={"spec": {PayloadFiledsEnums.CRON_JOB: schedule}})
+    scaler.patch(
+        kind=cast(dict, cronjob), body={"spec": {PayloadFieldsEnums.CRON_JOB: schedule}}
+    )
 
     return model
 
@@ -96,14 +113,15 @@ async def reset(model: ScalerScheduleResetModel):
     )
 
     scaler.patch(
-        kind=cronjobs, body={"spec": {PayloadFiledsEnums.CRON_JOB: model.schedule}}
+        kind=cast(dict, cronjobs),
+        body={"spec": {PayloadFieldsEnums.CRON_JOB: model.schedule}},
     )
 
     return model
 
 
 @router.post("/status", status_code=HTTPStatus.CREATED)
-async def scale(model: ScalerStatusModel):
+async def status(model: ScalerStatusModel):
 
     logger.info(
         f"Got request with kind: {model.kind} in {model.namespace} namespace and status request"
@@ -112,7 +130,32 @@ async def scale(model: ScalerStatusModel):
     return {
         "status": scaler.status(
             kind=model.kind,
+            name=model.label_selector,
             namespace=model.namespace,
-            name=f"{model.namespace}-{model.label_selector}",
         )
     }
+
+
+@router.post("/support", status_code=HTTPStatus.CREATED)
+async def support(model: ScalerSupportModel):
+    (job,) = list(
+        scaler.describe(
+            kinds=[model.kind],
+            label_selector=f"app={model.name}",
+            namespaces=[model.namespace],
+        )
+    )
+    support_service.validate(
+        action=model.action,
+        job=cast(dict, job),
+        name=model.name,
+        namespace=model.namespace,
+    )
+    support_service.create_or_delete(
+        action=model.action,
+        name=model.name,
+        namespace=model.namespace,
+        size=model.size,
+    )
+
+    return model

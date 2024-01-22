@@ -2,10 +2,11 @@ from fastapi import APIRouter, Depends, Header
 from http import HTTPStatus
 
 from ..models.slack_model import SlackSlashCommandModel
-from ..services.devenv_service import DevenvService
 from ..services.notification_service import NotificationService
+from ..services.actions_factory import ActionFactory
 from ..services.slack_service import SlackService
 from ..common.utils import logger
+from ..handlers.errors import SlackBotError
 
 router = APIRouter(
     prefix="/api/v1",
@@ -35,12 +36,14 @@ async def devenv(
         f"Got {payload.command} command from {payload.user_name} user with text {payload.text}, trying to evaluate it"
     )
 
-    devenv_service = DevenvService(text=payload.text)
-    json = devenv_service.generate_body_for_action()
+    action, *_ = payload.text.split(" ")
+    action_service = ActionFactory.create_action(action)
+    action_service.parse(payload.text)
+    action_service.validate()
+    json = action_service.execute()
+    response, status_code = await action_service.scaler_response(json=json)
 
-    response = await devenv_service.send_request(json=json)
-
-    return devenv_service.slack_response(response=response)
+    return action_service.slack_response(response=response, status_code=status_code)
 
 
 @router.post("/devenv/slack/notifications", status_code=HTTPStatus.CREATED)

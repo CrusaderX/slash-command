@@ -18,7 +18,7 @@ class NotificationService:
         )["scheduled_message_id"]
 
     @staticmethod
-    def slack_delete_scheduled_message(scheduled_message_id: int) -> None:
+    def slack_delete_scheduled_message(scheduled_message_id: str) -> None:
         client.chat_deleteScheduledMessage(
             channel=settings.slack_bot_channel_id,
             scheduled_message_id=scheduled_message_id,

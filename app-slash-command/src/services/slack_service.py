@@ -30,18 +30,65 @@ class SlackService:
 
 class SlackResponses:
     @staticmethod
-    def send_basic_operations_response(slack_namespace: str, action: str) -> dict:
-        return {
+    def send_basic_operations_response(
+        slack_namespace: str,
+        action: str,
+        details: str | None = None,
+        status_code: int | None = None,
+    ) -> dict:
+        additional_text = str()
+
+        if (
+            action
+            in [
+                ActionEnums.START,
+                ActionEnums.STOP,
+            ]
+            and slack_namespace in settings.namespaces_with_depth
+        ):
+            additional_text = " Please, wait additional 5-10m, aws services (ec2, rds) are launching/stopping."
+
+        error_details = {
             "response_type": "in_channel",
             "blocks": [
                 {
                     "type": "section",
                     "text": {
-                        "text": f"Environment *{slack_namespace}* is {StatusEnums[action.upper()].value}",
+                        "text": f"Something went wrong",
                         "type": "mrkdwn",
                     },
                     "fields": [
+                        {"type": "mrkdwn", "text": "*Details*"},
                         {"type": "mrkdwn", "text": "*Status*"},
+                        {
+                            "type": "mrkdwn",
+                            "text": f"{details}",
+                        },
+                        {
+                            "type": "plain_text",
+                            "text": f"{status_code}",
+                        },
+                    ],
+                }
+            ],
+        }
+
+        response = {
+            "response_type": "in_channel",
+            "blocks": [
+                {
+                    "type": "section",
+                    "text": {
+                        "text": f"Environment *{slack_namespace}* is {StatusEnums[action.upper()].value}.{additional_text}",
+                        "type": "mrkdwn",
+                    },
+                    "fields": [
+                        {"type": "mrkdwn", "text": "*URL*"},
+                        {"type": "mrkdwn", "text": "*Status*"},
+                        {
+                            "type": "mrkdwn",
+                            "text": f"https://{slack_namespace}.example.com",
+                        },
                         {
                             "type": "plain_text",
                             "text": f"{StatusEnums[action.upper()].value}",
@@ -50,6 +97,11 @@ class SlackResponses:
                 },
             ],
         }
+
+        if details:
+            return error_details
+
+        return response
 
     @staticmethod
     def send_status_operation_response(slack_namespace: str, status: str) -> dict:
@@ -82,7 +134,7 @@ class SlackResponses:
                         {"type": "mrkdwn", "text": "*actions*"},
                         {
                             "type": "plain_text",
-                            "text": "/devenv prolongate orca for 1h",
+                            "text": "/devenv prolongate dev1 for 1h",
                         },
                         {
                             "type": "mrkdwn",

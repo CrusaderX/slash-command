@@ -56,9 +56,19 @@ class DevenvProlongateWrongTimeError(SlackBotError):
         super().__init__(status_code=status_code, detail=detail)
 
 
+class DevenvSupportSizeError(SlackBotError):
+    def __init__(self, size: str):
+        status_code = HTTPStatus.OK
+        detail = {"status": "error", "message": f"Provided size {size} is incorrect"}
+
+        super().__init__(status_code=status_code, detail=detail)
+
+
 class ScalerEndpointUnhealthyError(SlackBotError):
     def __init__(self, scaler_status_code: int, scaler_status_test: str):
         status_code = HTTPStatus.OK
-        detail = f"Scaler REST API is not accessible, code: {scaler_status_code}, status: {scaler_status_test}"
+        detail = (
+            f"error code: {scaler_status_code}, error message: {scaler_status_test}"
+        )
 
         super().__init__(status_code=status_code, detail=detail)

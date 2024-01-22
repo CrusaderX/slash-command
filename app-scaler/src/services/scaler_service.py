@@ -1,9 +1,9 @@
-from typing import Dict, List, Optional, Generator
+from typing import Generator, Any
 from operator import gt, ge
 
 from ..services.base_service import BaseComponents
 from ..handlers.error_handler import ScalerCronJobNameHasChangedError
-from ..models.scaler_model import StatusEnums
+from ..models.scaler_model import KindsEnums, StatusEnums
 from ..config import settings
 
 
@@ -23,32 +23,32 @@ class ScalerService(BaseComponents):
 
     def describe(
         self,
-        kinds: List[str],
-        namespaces: List[str],
-        label_selector: Optional[str] = None,
-    ) -> Generator[List, None, None]:
+        kinds: list[KindsEnums],
+        namespaces: list[str],
+        label_selector: str | None = None,
+    ) -> Generator[list[dict], None, None]:
         """
         Get given kinds across provided namespaces, kinds are from models/scalerModel
 
-        :param kinds: List[str] which kinds should we call with getattr
-        :param namespaces: List[str] namespaces where to find kinds
+        :param kinds: list[str] which kinds should we call with getattr
+        :param namespaces: list[str] namespaces where to find kinds
         :param label_selector: Optional[str] provided label for signle query
 
-        :return Generator[List, None, None]:
+        :return Generator[list, None, None]:
         """
         for kind in kinds:
             yield getattr(self, kind)(
                 namespaces=namespaces, label_selector=label_selector
             )
 
-    def filter(self, kind: Dict, exclude: Optional[List[str]] = []) -> List[Dict]:
+    def filter(self, kind: dict[str, Any], exclude: list[str]) -> list[dict[str, Any]]:
         """
         Filter given kinds to exclude
 
-        :param kinds: List[str]
-        :param exclude: Optional[List[str]] which deployment or statefulsets should we exclude from our result
+        :param kinds: list[str]
+        :param exclude: Optional[list[str]] which deployment or statefulsets should we exclude from our result
 
-        :return List[Dict]
+        :return list[dict]
         """
         return [
             {
@@ -58,20 +58,40 @@ class ScalerService(BaseComponents):
                         for name, replicas in statuses.items()
                         if self.action(replicas, 0) and name not in exclude
                     }
-                    for namespace, statuses in _.items()
+                    for namespace, statuses in v.items()
                 }
             }
-            for k, _ in kind.items()
+            for k, v in kind.items()
         ]
+
+    def delete(
+        self,
+        kind: KindsEnums,
+        name: str,
+        namespace: str,
+    ) -> Any:
+        """
+        :param kind: KindsEnums
+        :param namespace: str
+        :param name: label_selector
+
+        :return None
+        """
+        getattr(self, f"delete_{kind}")(
+            name=name,
+            namespace=namespace,
+        )
+
+        return None
 
     def patch(
         self,
-        kind: Dict,
+        kind: dict,
         body: dict,
     ) -> None:
         """
-        :param kinds: List[str]
-        :param namespaces: List[str] namespaces where to find kinds
+        :param kinds: list[str]
+        :param namespaces: list[str] namespaces where to find kinds
         :param replicas: int desired replica count for kind
 
         :return None
@@ -84,8 +104,9 @@ class ScalerService(BaseComponents):
                     getattr(self, f"patch_{k}")(
                         name=name, namespace=namespace, body=body
                     )
+        return None
 
-    def status(self, kind: str, namespace: str, name: str) -> dict:
+    def status(self, kind: KindsEnums, namespace: str, name: str) -> str:
         response = self.kind_status(
             kind=kind,
             name=name,
@@ -104,11 +125,16 @@ class ScalerService(BaseComponents):
         if not_ready:
             return StatusEnums.PENDING
 
+        if any(x is None for x in [replicas, ready]):
+            return StatusEnums.UNKNOWN
+
         if replicas >= 1 and ready > 0:
             return StatusEnums.RUNNING
 
+        return StatusEnums.UNKNOWN
+
     @staticmethod
-    def modify_schedule(cronjob: dict, namespace: str, hours: int) -> str:
+    def modify_schedule(cronjob: dict[str, Any], namespace: str, hours: int) -> str:
         try:
             schedule = cronjob["cronjobs"][namespace][settings.cron_job_default_label]
         except KeyError:

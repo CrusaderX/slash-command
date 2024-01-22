@@ -13,6 +13,22 @@ class ScalerCronJobNameHasChangedError(ScalerError):
 
 class ScalerInternalError(ScalerError):
     def __init__(self, error: str, status_code: int):
-        detail = f"Something went wrong with error: {error}"
+        detail = f"{error}"
+
+        super().__init__(status_code=status_code, detail=detail)
+
+
+class ScalerSupportJobExistsError(ScalerError):
+    def __init__(self, uid: str):
+        status_code = HTTPStatus.CONFLICT
+        detail = f"Job with {uid} uid already exists, use another name"
+
+        super().__init__(status_code=status_code, detail=detail)
+
+
+class ScalerSupportJobDoesntExistError(ScalerError):
+    def __init__(self, uid: str):
+        status_code = HTTPStatus.NOT_FOUND
+        detail = f"Job with {uid} uid doesn't exist, nothing to stop"
 
         super().__init__(status_code=status_code, detail=detail)
