@@ -14,6 +14,24 @@ cronjob should be paused when:
 * namespace has been created with `scheduler=disabled`
 * namespace has been relabeled with `scheduler=disabled`
 
+Additional cronjob should reset shutdown time in all namespaces to default one every morning.
+
+`CREATE` and `UPDATE` kubernetes events on namespace should be managed by `AdmissionWebHook`. (see app-scaler/controllers/cronjob_controller.py`).
+
+### additional requirements
+
+EC2 or RDS instances should be stopped or started if they have the same labels. For instance,
+
+```yaml
+namespace: dev1
+scheduler: enabled
+```
+
+We should have a possibility to run `static` pod for management purpose. Request should consist of memory size of a pod (like XS,S,M etc).
+
+There should be at least 3 types of notifications before environment is going to shutdown: 1 hour before, 30 and 15 mins before shutdown.
+
+
 ## slack slash commands
 
 Commands should send default payload to scaler api; that means it will scale all deployments and stateful sets to 0 replicas as stop/start commands.
@@ -58,12 +76,24 @@ Slash command should have help command which will return actual help message for
 /devenv help
 ```
 
-TODO
+### suppoer
 
-## scaler
+Slack command to start and stop manage pod. /<slash-command> support start <name> <size>
 
+```yaml
+/devenv support start manage1 XL
+/devenv support stop manage1
+```
+
+
+## scaler api
+
+OpenAPI scheme is on `/docs` url.
 
 ## cacher
 
+Purpose is to save ec2 and rds instances with provided labels into dynamodb as cache location. Written in `Golang`.
 
 ## proxy
+
+TODO
