@@ -1,5 +1,10 @@
 # Kubernetes deployments and stateful sets scaler via slack bot slash command
 
+## diagram
+
+![diagram](docs/diagram.png)
+
+
 Kubernetes cluster with multiple namespaces. These namespaces should be stopped at specific time every working day and started manually by user request.
 
 ## requirements
@@ -96,4 +101,6 @@ Purpose is to save ec2 and rds instances with provided labels into dynamodb as c
 
 ## proxy
 
-TODO
+A proxy for scaler service because AdmissionWebhook needs a ssl endpoint.
+
+
